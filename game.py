@@ -13,8 +13,8 @@ move_speed = 1  # Faster movement speed
 mouse_sensitivity = 0.002
 
 # Camera rotation (yaw and pitch)
-cam_yaw = 0  # Left/right rotation
-cam_pitch = 0  # Up/down rotation
+cam_yaw = -math.pi  # Left/right rotation
+cam_pitch = math.pi  # Up/down rotation
 
 # Cube rotation (roll, pitch, yaw)
 angle_x, angle_y, angle_z = 0.01, 0.01, 0.01  # Cube's rotation angles
@@ -160,7 +160,6 @@ def draw_text():
     position_surface = font.render(position_text, True, (255, 255, 255))
     screen.blit(position_surface, (screen.get_width() - position_surface.get_width() - 10, 10))
 
-
 while running:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
@@ -181,19 +180,19 @@ while running:
     if keys[pygame.K_w]:
         # Move forward relative to camera yaw
         cam_x += move_speed * math.sin(cam_yaw)
-        cam_z += move_speed * math.cos(cam_yaw)
+        cam_z -= move_speed * math.cos(cam_yaw)
     if keys[pygame.K_s]:
         # Move backward relative to camera yaw
         cam_x -= move_speed * math.sin(cam_yaw)
-        cam_z -= move_speed * math.cos(cam_yaw)
+        cam_z += move_speed * math.cos(cam_yaw)
     if keys[pygame.K_a]:
         # Strafe left relative to camera yaw
         cam_x -= move_speed * math.cos(cam_yaw)
-        cam_z += move_speed * math.sin(cam_yaw)
+        cam_z -= move_speed * math.sin(cam_yaw)
     if keys[pygame.K_d]:
         # Strafe right relative to camera yaw
         cam_x += move_speed * math.cos(cam_yaw)
-        cam_z -= move_speed * math.sin(cam_yaw)
+        cam_z += move_speed * math.sin(cam_yaw)
     if keys[pygame.K_SPACE]:
         cam_y += move_speed  # Move up
     if keys[pygame.K_LSHIFT]:
@@ -202,11 +201,11 @@ while running:
     # Handle mouse movement for camera rotation
     if mouse_locked:
         mouse_dx, mouse_dy = pygame.mouse.get_rel()
-        cam_yaw -= mouse_dx * mouse_sensitivity  # Yaw (left/right)
+        cam_yaw += mouse_dx * mouse_sensitivity  # Yaw (left/right)
         cam_pitch += mouse_dy * mouse_sensitivity  # Pitch (up/down)
 
         # Clamp pitch to avoid flipping
-        cam_pitch = max(-math.pi / 2, min(math.pi / 2, cam_pitch))
+        cam_pitch = max(math.pi/2, min((3*math.pi)/2, cam_pitch))
 
     # Increment the cube's rotation angles for animation
     angle_x += 0.01
