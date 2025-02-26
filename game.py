@@ -7,6 +7,27 @@ pygame.display.set_caption("3D Renderer")
 clock = pygame.time.Clock()
 running = True
 
+# Camera settings (persistent across frames)
+cam_x, cam_y, cam_z = 0, 0, -500  # Initial camera position (farther away)
+move_speed = 1  # Faster movement speed
+mouse_sensitivity = 0.002
+
+# Camera rotation (yaw and pitch)
+cam_yaw = 0  # Left/right rotation
+cam_pitch = 0  # Up/down rotation
+
+# Cube rotation (roll, pitch, yaw)
+angle_x, angle_y, angle_z = 0.01, 0.01, 0.01  # Cube's rotation angles
+
+# Mouse control settings
+mouse_locked = True
+pygame.mouse.set_visible(False)
+pygame.event.set_grab(True)
+
+# Font for displaying text
+font = pygame.font.SysFont("Arial", 20)
+
+
 class Render:
     def __init__(self, x, y, z, f, size):
         self.x = x
@@ -46,31 +67,35 @@ class Render:
         self.x, self.y = new_x, new_y
 
     def project(self):
+        """Project the 3D point to 2D screen coordinates."""
         if self.z <= 0.1:  # Prevent division by very small or negative numbers
-            return (640, 360)  # Default to center of screen (optional safeguard)
+            return None  # Don't render points behind or too close to the camera
 
         proj_x = (self.x / self.z) * self.f
         proj_y = (self.y / self.z) * self.f
         return (int(proj_x + 640), int(proj_y + 360))
 
-    def process(self, cam_x, cam_y, cam_z, angle_x, angle_y, angle_z):
-
+    def process(self, cam_x, cam_y, cam_z, cam_yaw, cam_pitch, angle_x, angle_y, angle_z):
         self.scale()
 
-    # Rotate around its own center
+        # Rotate the cube around its own center
         self.rotate_x(angle_x)
         self.rotate_y(angle_y)
         self.rotate_z(angle_z)
 
-    # Now translate relative to the camera
+        # Translate relative to the camera
         self.x -= cam_x
         self.y -= cam_y
         self.z -= cam_z
 
+        # Rotate the cube relative to the camera's yaw and pitch
+        self.rotate_y(cam_yaw)  # Apply camera yaw (left/right)
+        self.rotate_x(cam_pitch)  # Apply camera pitch (up/down)
+
         return self.project()
 
 
-def draw_cube(angle_x, angle_y, angle_z):
+def draw_cube(angle_x, angle_y, angle_z, cam_x, cam_y, cam_z, cam_yaw, cam_pitch):
     """Create a rotating cube and project its vertices."""
     # Define the cube's vertices (reset every frame)
     vertices = [
@@ -91,38 +116,107 @@ def draw_cube(angle_x, angle_y, angle_z):
         (0, 4), (1, 5), (2, 6), (3, 7)
     ]
 
-    # Camera settings
-    cam_x, cam_y, cam_z = 0, 0, -500
-
     # Process and store projected points
-    projected_vertices = [v.process(cam_x, cam_y, cam_z, angle_x, angle_y, angle_z) for v in vertices]
+    projected_vertices = []
+    for v in vertices:
+        projected = v.process(cam_x, cam_y, cam_z, cam_yaw, cam_pitch, angle_x, angle_y, angle_z)
+        if projected:  # Only render points in front of the camera
+            projected_vertices.append(projected)
+
+    # Draw edges (only if both vertices are visible)
+    for start, end in edges:
+        if start < len(projected_vertices) and end < len(projected_vertices):
+            pygame.draw.line(screen, (255, 255, 255), projected_vertices[start], projected_vertices[end], 2)
 
     # Draw vertices
     for p in projected_vertices:
         pygame.draw.circle(screen, (255, 255, 255), p, 5)
 
-    # Draw edges
-    for start, end in edges:
-        pygame.draw.line(screen, (255, 255, 255), projected_vertices[start], projected_vertices[end], 2)
-
     return angle_x, angle_y, angle_z
 
 
-# Initialize rotation angles before the loop
-angle_x, angle_y, angle_z = 0.01, 0.01, 0.01
+def draw_grid(cam_x, cam_y, cam_z, cam_yaw, cam_pitch):
+    """Draw a grid on the ground for visual reference."""
+    grid_size = 10
+    grid_step = 1
+    for x in range(-grid_size, grid_size + 1, grid_step):
+        for z in range(-grid_size, grid_size + 1, grid_step):
+            # Create a point on the grid
+            point = Render(x, 0, z, 500, 100)
+            projected = point.process(cam_x, cam_y, cam_z, cam_yaw, cam_pitch, 0, 0, 0)
+            if projected:
+                pygame.draw.circle(screen, (100, 100, 100), projected, 1)
+
+
+def draw_text():
+    """Draw camera direction and position on the screen."""
+    # Camera direction (yaw and pitch)
+    direction_text = f"Yaw: {cam_yaw:.2f}, Pitch: {cam_pitch:.2f}"
+    direction_surface = font.render(direction_text, True, (255, 255, 255))
+    screen.blit(direction_surface, (10, 10))
+
+    # Camera position (x, y, z)
+    position_text = f"Position: ({cam_x:.2f}, {cam_y:.2f}, {cam_z:.2f})"
+    position_surface = font.render(position_text, True, (255, 255, 255))
+    screen.blit(position_surface, (screen.get_width() - position_surface.get_width() - 10, 10))
+
 
 while running:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
+        elif event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_ESCAPE:
+                mouse_locked = not mouse_locked
+                pygame.mouse.set_visible(not mouse_locked)
+                pygame.event.set_grab(mouse_locked)
+        elif event.type == pygame.MOUSEBUTTONDOWN:
+            if not mouse_locked:
+                mouse_locked = True
+                pygame.mouse.set_visible(False)
+                pygame.event.set_grab(True)
 
-    # Increment the rotation angles to create rotation effect
+    # Handle keyboard input for camera movement
+    keys = pygame.key.get_pressed()
+    if keys[pygame.K_w]:
+        # Move forward relative to camera yaw
+        cam_x += move_speed * math.sin(cam_yaw)
+        cam_z += move_speed * math.cos(cam_yaw)
+    if keys[pygame.K_s]:
+        # Move backward relative to camera yaw
+        cam_x -= move_speed * math.sin(cam_yaw)
+        cam_z -= move_speed * math.cos(cam_yaw)
+    if keys[pygame.K_a]:
+        # Strafe left relative to camera yaw
+        cam_x -= move_speed * math.cos(cam_yaw)
+        cam_z += move_speed * math.sin(cam_yaw)
+    if keys[pygame.K_d]:
+        # Strafe right relative to camera yaw
+        cam_x += move_speed * math.cos(cam_yaw)
+        cam_z -= move_speed * math.sin(cam_yaw)
+    if keys[pygame.K_SPACE]:
+        cam_y += move_speed  # Move up
+    if keys[pygame.K_LSHIFT]:
+        cam_y -= move_speed  # Move down
+
+    # Handle mouse movement for camera rotation
+    if mouse_locked:
+        mouse_dx, mouse_dy = pygame.mouse.get_rel()
+        cam_yaw -= mouse_dx * mouse_sensitivity  # Yaw (left/right)
+        cam_pitch += mouse_dy * mouse_sensitivity  # Pitch (up/down)
+
+        # Clamp pitch to avoid flipping
+        cam_pitch = max(-math.pi / 2, min(math.pi / 2, cam_pitch))
+
+    # Increment the cube's rotation angles for animation
     angle_x += 0.01
     angle_y += 0.01
     angle_z += 0.01
 
     screen.fill("black")  # Clear the screen
-    angle_x, angle_y, angle_z = draw_cube(angle_x, angle_y, angle_z)  # Draw rotating cube and update angles
+    draw_grid(cam_x, cam_y, cam_z, cam_yaw, cam_pitch)  # Draw grid for visual reference
+    angle_x, angle_y, angle_z = draw_cube(angle_x, angle_y, angle_z, cam_x, cam_y, cam_z, cam_yaw, cam_pitch)  # Draw cube
+    draw_text()  # Draw camera direction and position
     pygame.display.flip()  # Update the display
     clock.tick(60)  # Control the frame rate
 
