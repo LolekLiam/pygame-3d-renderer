@@ -46,64 +46,66 @@ class Render:
         self.x, self.y = new_x, new_y
 
     def project(self):
-        """Project the 3D coordinates onto a 2D plane."""
-        # Apply perspective projection
+        if self.z <= 0.1:  # Prevent division by very small or negative numbers
+            return (640, 360)  # Default to center of screen (optional safeguard)
+
         proj_x = (self.x / self.z) * self.f
         proj_y = (self.y / self.z) * self.f
-        return (int(proj_x + 640), int(proj_y + 360))  # Translate to center of screen
+        return (int(proj_x + 640), int(proj_y + 360))
 
     def process(self, cam_x, cam_y, cam_z, angle_x, angle_y, angle_z):
-        """Process transformations and apply camera view."""
-        self.scale()
-        self.x -= cam_x
-        self.y -= cam_y
-        self.z -= cam_z
 
-        # Rotate around the center before applying projection
+        self.scale()
+
+    # Rotate around its own center
         self.rotate_x(angle_x)
         self.rotate_y(angle_y)
         self.rotate_z(angle_z)
+
+    # Now translate relative to the camera
+        self.x -= cam_x
+        self.y -= cam_y
+        self.z -= cam_z
 
         return self.project()
 
 
 def draw_cube(angle_x, angle_y, angle_z):
     """Create a rotating cube and project its vertices."""
-    # Define the cube's vertices (8 vertices)
+    # Define the cube's vertices (reset every frame)
     vertices = [
-        Render(1, 1, 1, 500, 100),   # Front-top-right
-        Render(-1, 1, 1, 500, 100),  # Front-top-left
-        Render(-1, -1, 1, 500, 100), # Front-bottom-left
-        Render(1, -1, 1, 500, 100),  # Front-bottom-right
-        Render(1, 1, -1, 500, 100),  # Back-top-right
-        Render(-1, 1, -1, 500, 100), # Back-top-left
-        Render(-1, -1, -1, 500, 100),# Back-bottom-left
-        Render(1, -1, -1, 500, 100), # Back-bottom-right
+        Render(1, 1, 1, 500, 100),
+        Render(-1, 1, 1, 500, 100),
+        Render(-1, -1, 1, 500, 100),
+        Render(1, -1, 1, 500, 100),
+        Render(1, 1, -1, 500, 100),
+        Render(-1, 1, -1, 500, 100),
+        Render(-1, -1, -1, 500, 100),
+        Render(1, -1, -1, 500, 100),
     ]
 
-    # Cube's edges (vertex pairs to connect)
+    # Cube's edges
     edges = [
-        (0, 1), (1, 2), (2, 3), (3, 0),   # Front face
-        (4, 5), (5, 6), (6, 7), (7, 4),   # Back face
-        (0, 4), (1, 5), (2, 6), (3, 7)    # Connecting edges
+        (0, 1), (1, 2), (2, 3), (3, 0),
+        (4, 5), (5, 6), (6, 7), (7, 4),
+        (0, 4), (1, 5), (2, 6), (3, 7)
     ]
 
     # Camera settings
-    cam_x, cam_y, cam_z = 0, 0, -500  # Camera distance
+    cam_x, cam_y, cam_z = 0, 0, -500
 
-    # Process each vertex, project to 2D, and draw
-    for vertex in vertices:
-        projected_point = vertex.process(cam_x, cam_y, cam_z, angle_x, angle_y, angle_z)
-        pygame.draw.circle(screen, (255, 255, 255), projected_point, 5)
+    # Process and store projected points
+    projected_vertices = [v.process(cam_x, cam_y, cam_z, angle_x, angle_y, angle_z) for v in vertices]
 
-    # Draw the edges (lines between the projected vertices)
-    for edge in edges:
-        start, end = edge
-        start_point = vertices[start].process(cam_x, cam_y, cam_z, angle_x, angle_y, angle_z)
-        end_point = vertices[end].process(cam_x, cam_y, cam_z, angle_x, angle_y, angle_z)
-        pygame.draw.line(screen, (255, 255, 255), start_point, end_point, 2)
+    # Draw vertices
+    for p in projected_vertices:
+        pygame.draw.circle(screen, (255, 255, 255), p, 5)
 
-    return angle_x, angle_y, angle_z  # Return the updated rotation angles
+    # Draw edges
+    for start, end in edges:
+        pygame.draw.line(screen, (255, 255, 255), projected_vertices[start], projected_vertices[end], 2)
+
+    return angle_x, angle_y, angle_z
 
 
 # Initialize rotation angles before the loop
